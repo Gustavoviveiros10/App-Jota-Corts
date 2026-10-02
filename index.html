@@ -541,7 +541,7 @@ function listaClientes(){
   let cs=S.clientes.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR"));
   if(q)cs=cs.filter(c=>String(c.nome).toLowerCase().includes(q)||String(c.telefone||"").replace(/\D/g,"").includes(q.replace(/\D/g,"")||"\u0000"));
   if(S.filtro==="sumidos")cs=cs.filter(c=>sumido(st[c.id]));
-  if(S.filtro==="mensalistas")cs=cs.filter(c=>c.mensalista);
+  if(S.filtro==="mensalistas")cs=cs.filter(c=>c.mensalista||c.mensalDeclarado);
   if(S.carregando)return'<div class="empty"><p>Carregando clientes…</p></div>';
   if(!S.clientes.length)return'<div class="empty"><b>Sua carteira começa aqui</b><p>Cadastre o primeiro cliente ou marque um horário: o cliente entra na carteira sozinho.</p><button class="pill" data-act="novo-cli">Cadastrar cliente</button></div>';
   if(!cs.length)return'<div class="empty"><p>'+(S.filtro==="sumidos"?"Nenhum cliente sumido. Todo mundo voltou nos últimos 30 dias ou já tem horário marcado.":S.filtro==="mensalistas"?"Nenhum cliente mensal ainda. Abra a ficha de um cliente e ative Cliente mensal.":"Nenhum cliente encontrado.")+'</p></div>';
@@ -550,14 +550,14 @@ function listaClientes(){
     const l=(String(c.nome).trim()[0]||"#").toUpperCase();
     if(l!==letra){if(aberto)h+="</div>";h+='<div class="letter">'+esc(l)+'</div><div class="grp">';letra=l;aberto=true}
     const s=st[c.id],pg=c.mensalista?mensPaga(c.id,MES):null;
-    const chipM=c.mensalista?(pg?'<span class="chip concluido">Mensal pago</span>':'<span class="chip sumido">Mensal em aberto</span>'):"";
+    const chipM=c.mensalista?(pg?'<span class="chip concluido">Mensal pago</span>':'<span class="chip sumido">Mensal em aberto</span>'):c.mensalDeclarado?'<span class="chip sumido">Confirmar mensal</span>':"";
     const sub=c.mensalista&&S.filtro==="mensalistas"?(pg?"Mensalidade de "+nomeMes(MES)+" paga em "+fmt(pg.data,{day:"numeric",month:"short"})+" · "+(PAG[pg.pagamento]||""):"Mensalidade de "+nomeMes(MES)+" em aberto · "+R(c.mensalidade)):s&&s.ultima?"Última visita "+haQuanto(s.ultima)+" · "+s.visitas+(s.visitas===1?" visita":" visitas"):(s&&s.proximo?"Primeiro horário em "+fmt(s.proximo,{day:"numeric",month:"short"}):"Ainda sem visitas");
     h+='<button class="row" data-act="ver-cli" data-id="'+esc(c.id)+'"><span class="av" style="background:'+cor(c.nome)+'">'+esc(iniciais(c.nome))+'</span><span class="main"><span class="t">'+esc(c.nome)+'</span><br><span class="s">'+esc(sub)+'</span></span>'+(chipM||(sumido(s)?'<span class="chip sumido">Sumido</span>':""))+IC.rs+'</button>';
   }
   return h+(aberto?"</div>":"");
 }
 function vClientes(){
-  const st=statsClientes(),ns=S.clientes.filter(c=>sumido(st[c.id])).length,nm=S.clientes.filter(c=>c.mensalista).length;
+  const st=statsClientes(),ns=S.clientes.filter(c=>sumido(st[c.id])).length,nm=S.clientes.filter(c=>c.mensalista||c.mensalDeclarado).length;
   return '<header class="head"><div><div class="sub">'+S.clientes.length+(S.clientes.length===1?" cliente":" clientes")+'</div><h1>Clientes</h1></div><div class="head-actions"><button class="plus" data-act="novo-cli" aria-label="Cadastrar cliente">'+IC.plus+'</button></div></header>'
     +'<label class="search">'+IC.lupa+'<input id="busca" type="search" placeholder="Buscar por nome ou telefone" value="'+esc(S.busca)+'" autocomplete="off"></label>'
     +'<div class="seg" role="tablist"><button class="'+(S.filtro==="todos"?"on":"")+'" data-act="filtro" data-f="todos">Todos</button><button class="'+(S.filtro==="sumidos"?"on":"")+'" data-act="filtro" data-f="sumidos">Sumidos'+(ns?" ("+ns+")":"")+'</button><button class="'+(S.filtro==="mensalistas"?"on":"")+'" data-act="filtro" data-f="mensalistas">Mensalistas'+(nm?" ("+nm+")":"")+'</button></div>'+(S.filtro==="sumidos"?'<p class="aviso" style="color:var(--fg2)">Sem visita há mais de 30 dias e sem horário marcado.</p>':"")
@@ -653,6 +653,8 @@ function vInicio(){
   const st=statsClientes(),ns=S.clientes.filter(c=>sumido(st[c.id])).length;
   let at="";
   if(ab.length)at+='<button class="row" data-act="ir-mens"><span class="main"><span class="t">'+ab.length+(ab.length===1?" mensalidade em aberto":" mensalidades em aberto")+'</span><br><span class="s">'+R(mensAb)+' de '+nomeMes(MES)+'</span></span>'+IC.rs+'</button>';
+  const nd=S.clientes.filter(c=>c.mensalDeclarado&&!c.mensalista).length;
+  if(nd)at+='<button class="row" data-act="ir-mens"><span class="main"><span class="t">'+nd+(nd===1?" cliente disse ser mensalista":" clientes disseram ser mensalistas")+'</span><br><span class="s">Confirme na ficha para o plano valer</span></span>'+IC.rs+'</button>';
   if(ns)at+='<button class="row" data-act="ir-sumidos"><span class="main"><span class="t">'+ns+(ns===1?" cliente sumido":" clientes sumidos")+'</span><br><span class="s">Sem visita há mais de 30 dias e sem horário marcado</span></span>'+IC.rs+'</button>';
   const h=n.getHours(),oi=h<12?"Bom dia":h<18?"Boa tarde":"Boa noite";
   return '<header class="head"><div><div class="sub">'+oi+" · "+fmt(HOJE,{weekday:"long",day:"numeric",month:"long"})+'</div><h1>'+esc(cfg().nome||oi)+'</h1></div><div class="head-actions"><button class="plus" data-act="novo-ag" data-d="'+HOJE+'" aria-label="Marcar horário">'+IC.plus+'</button></div></header>'
@@ -775,6 +777,7 @@ function sheetCli(c){
     +'<label class="row"><span>WhatsApp</span><input id="cli-tel" type="tel" value="'+esc(c.telefone||"")+'" placeholder="(11) 90000-0000" autocomplete="off"></label></div>'
     +'<div class="grp"><label class="row"><span>Cliente mensal</span><input class="sw" id="cli-mensal" type="checkbox"'+(c.mensalista?" checked":"")+'></label>'
     +'<label class="row" id="cli-mens-row"'+(c.mensalista?"":" hidden")+'><span>Mensalidade (R$)</span><input id="cli-mens-valor" class="num" type="text" inputmode="decimal" placeholder="0,00" value="'+esc(c.mensalidade?String(Number(c.mensalidade)).replace(".",","):"")+'"></label></div>'
+    +(c.id&&c.mensalDeclarado&&!c.mensalista?'<div class="note"><span>Esse cliente se identificou como mensalista pelo link. Para confirmar, ligue Cliente mensal, informe o valor e salve.</span><button data-act="nao-mensal" data-id="'+esc(c.id)+'">Não é mensal</button></div>':"")
     +(c.id&&c.mensalista?mensBloco(c,tel):"")
     +'<div class="lbl">Observações</div><div class="grp"><textarea id="cli-obs" placeholder="Corte preferido, máquina, alergias, como gosta da barba…">'+esc(c.obs||"")+'</textarea></div>'
     +'<p class="aviso erro" id="form-erro" hidden></p>';
@@ -885,8 +888,16 @@ const ACT={
     if(ja)return erroForm("Já existe cliente com esse WhatsApp: "+ja.nome+". Abra a ficha dele"+(id?" ou use Juntar com outro cliente.":"."));
     const doc=Object.assign(antigo?corpo(antigo):{criadoEm:HOJE},{nome,telefone:tel,obs:$("#cli-obs").value.trim(),mensalista:$("#cli-mensal").checked,mensalidade:numIn($("#cli-mens-valor").value)});
     if(doc.mensalista&&!doc.mensalidade)return erroForm("Informe o valor da mensalidade.");
+    if(doc.mensalista)doc.mensalDeclarado=false;
     if(!await store.set("clientes",id||novoId(),doc))return;
-    fechar();toast(id?"Ficha atualizada":"Cliente cadastrado");
+    fechar();
+    if(id&&doc.mensalista&&!(antigo&&antigo.mensalista)){
+      // virou mensal agora: os horários futuros ainda não atendidos passam a ser cobertos pela mensalidade
+      const fut=S.agendamentos.filter(a=>a.clienteId===id&&a.status==="agendado"&&a.data>=HOJE&&Number(a.valor)>0);
+      for(const a of fut)if(!await store.set("agendamentos",a.id,Object.assign(corpo(a),{valor:0})))return;
+      return toast("Cliente mensal confirmado"+(fut.length?". "+fut.length+(fut.length===1?" horário futuro ficou coberto":" horários futuros ficaram cobertos")+" pela mensalidade":""));
+    }
+    toast(id?"Ficha atualizada":"Cliente cadastrado");
   },
   async "receber-mens"(el){
     const c=achar("clientes",el.dataset.id);if(!c)return;
@@ -926,6 +937,10 @@ const ACT={
   "ir-fat"(){S.tab="fat";S.fatModo="mes";S.fatRef=HOJE;render();$("#app").scrollTop=0},
   "ir-sumidos"(){S.tab="clientes";S.filtro="sumidos";S.busca="";render();$("#app").scrollTop=0},
   "ir-mens"(){S.tab="clientes";S.filtro="mensalistas";S.busca="";render();$("#app").scrollTop=0},
+  async "nao-mensal"(el){
+    const c=achar("clientes",el.dataset.id);if(!c)return;
+    if(await store.set("clientes",c.id,Object.assign(corpo(c),{mensalDeclarado:false}))){fechar();toast("Aviso removido. O cliente segue como avulso.")}
+  },
   juntar(el){const c=achar("clientes",el.dataset.id);if(c)abrir(sheetJuntar(c))},
   async "confirmar-juntar"(el){
     const c=achar("clientes",el.dataset.id),o=achar("clientes",$("#jt-outro").value);
