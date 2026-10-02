@@ -642,7 +642,7 @@ function vInicio(){
   if(ab.length)at+='<button class="row" data-act="ir-mens"><span class="main"><span class="t">'+ab.length+(ab.length===1?" mensalidade em aberto":" mensalidades em aberto")+'</span><br><span class="s">'+R(mensAb)+' de '+nomeMes(MES)+'</span></span>'+IC.rs+'</button>';
   if(ns)at+='<button class="row" data-act="ir-sumidos"><span class="main"><span class="t">'+ns+(ns===1?" cliente sumido":" clientes sumidos")+'</span><br><span class="s">Sem visita há mais de 30 dias e sem horário marcado</span></span>'+IC.rs+'</button>';
   const h=n.getHours(),oi=h<12?"Bom dia":h<18?"Boa tarde":"Boa noite";
-  return '<header class="head"><div><div class="sub">'+esc(cfg().nome?cfg().nome+" · ":"")+fmt(HOJE,{weekday:"short",day:"numeric",month:"long"})+'</div><h1>'+oi+'</h1></div><div class="head-actions"><button class="plus" data-act="novo-ag" data-d="'+HOJE+'" aria-label="Marcar horário">'+IC.plus+'</button></div></header>'
+  return '<header class="head"><div><div class="sub">'+oi+" · "+fmt(HOJE,{weekday:"long",day:"numeric",month:"long"})+'</div><h1>'+esc(cfg().nome||oi)+'</h1></div><div class="head-actions"><button class="plus" data-act="novo-ag" data-d="'+HOJE+'" aria-label="Marcar horário">'+IC.plus+'</button></div></header>'
     +banner()+hero
     +'<div class="lbl">Agenda de hoje</div>'+resumo(hoje)+px+quick()+listaDia(HOJE)
     +(at?'<div class="lbl">Para acompanhar</div><div class="grp">'+at+'</div>':"");
