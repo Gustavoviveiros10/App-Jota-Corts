@@ -68,6 +68,15 @@ label.row>span:first-child{flex:none}
 .ok .ck{width:72px;height:72px;border-radius:36px;background:var(--green-bg);display:grid;place-items:center;color:var(--green)}
 .ok h1{margin:0;font-size:28px;font-weight:700}
 .ok p{margin:0;color:var(--fg2);font-size:15px;max-width:34ch}
+.meu{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+.meu+.meu{border-top:1px solid var(--line)}
+.meu .t{font-size:17px;font-weight:600}
+.meu .s{font-size:14px;color:var(--fg2)}
+.mb{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mb button{height:42px;border-radius:12px;background:rgba(91,157,255,.15);color:var(--tint-hi);text-align:center;font-weight:600;font-size:15px}
+.mb button.dg{background:var(--red-bg);color:var(--red)}
+.nota{background:var(--green-bg);color:var(--green);border-radius:14px;padding:12px 14px;font-size:15px}
+.nota.ruim{background:var(--red-bg);color:var(--red)}
 .foot{font-size:12px;color:var(--fg3);text-align:center}
 @media (max-width:360px){.slots{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -96,58 +105,94 @@ const SLUG=(new URLSearchParams(location.search).get("b")||"").toLowerCase();
 const DIAS=14;      // quantos dias à frente o cliente pode marcar
 const PASSO=30;     // intervalo entre opções de horário, em minutos
 const ANTECEDENCIA=30; // não oferece horários a menos de X minutos de agora
-let sb=null,INFO=null,OCUP=[];
-const E={servico:"",dia:"",hora:"",enviando:false,feito:null,erro:""};
+let sb=null,INFO=null,OCUP=[],MEUS=[];
+const E={servico:"",dia:"",hora:"",enviando:false,feito:null,erro:"",remarcar:null,cancelar:"",aviso:""};
 try{E.nome=localStorage.getItem("agenda.nome")||"";E.tel=localStorage.getItem("agenda.tel")||""}catch(e){E.nome="";E.tel=""}
+
+// Códigos dos horários marcados neste aparelho: é o que permite remarcar ou cancelar sem login.
+const TKEY="agenda.tk."+SLUG;
+let TK=[];
+try{TK=JSON.parse(localStorage.getItem(TKEY)||"[]");if(!Array.isArray(TK))TK=[]}catch(e){TK=[]}
+function guardaToken(t){
+  if(!t||String(t).length<32||TK.includes(t))return;
+  TK.push(t);TK=TK.slice(-30);
+  try{localStorage.setItem(TKEY,JSON.stringify(TK))}catch(e){}
+}
+const linkMeu=t=>location.origin+location.pathname+"?b="+encodeURIComponent(SLUG)+"&h="+t;
+const quando=(d,h)=>fmt(d,{weekday:"short",day:"numeric",month:"short"})+" às "+h;
 
 function folga(d){return(INFO.config.folgas||[]).includes(parse(d).getDay())}
 function livres(d){
-  const sv=INFO.servicos.find(s=>s.id===E.servico);
-  if(!sv||folga(d))return[];
-  const c=INFO.config,dur=Number(sv.duracao)||30,fim=mins(c.fecha);
+  const rm=E.remarcar,sv=INFO.servicos.find(s=>s.id===E.servico);
+  if((!sv&&!rm)||folga(d))return[];
+  const c=INFO.config,dur=rm?Number(rm.duracao)||30:Number(sv.duracao)||30,fim=mins(c.fecha);
   let cur=mins(c.abre);
   if(d===INFO.hoje)cur=Math.max(cur,Math.ceil((mins(INFO.agora)+ANTECEDENCIA)/10)*10);
-  const oc=OCUP.filter(o=>o.data===d).map(o=>[o.ini,o.fim]);
+  // ao remarcar, o horário atual do próprio cliente conta como livre
+  const oc=OCUP.filter(o=>o.data===d&&!(rm&&rm.data===d&&o.ini===mins(rm.hora))).map(o=>[o.ini,o.fim]);
   if(c.almocoIni&&c.almocoFim&&mins(c.almocoFim)>mins(c.almocoIni))oc.push([mins(c.almocoIni),mins(c.almocoFim)]);
   oc.sort((a,b)=>a[0]-b[0]);
   const out=[];
   const fatia=(a,b)=>{for(let t=a;t+dur<=b;t+=PASSO)out.push(hm(t))};
   for(const o of oc){if(o[0]>cur&&cur<fim)fatia(cur,Math.min(o[0],fim));cur=Math.max(cur,o[1])}
   if(cur<fim)fatia(cur,fim);
-  return out;
+  return rm&&rm.data===d?out.filter(t=>t!==rm.hora):out;
 }
 
+function blocoMeus(){
+  if(!MEUS.length)return"";
+  const prazo=Number(INFO.config.prazoAlterar);
+  return'<div class="lbl">Seus horários</div><div class="grp">'+MEUS.map(m=>'<div class="meu"><div class="main"><span class="t">'+quando(m.data,esc(m.hora))+'</span><br><span class="s">'+esc(m.servicoNome)+'</span></div>'
+    +(m.podeAlterar?'<div class="mb"><button data-act="remarcar" data-tk="'+esc(m.token)+'">Remarcar</button><button class="dg" data-act="cancelar" data-tk="'+esc(m.token)+'">'+(E.cancelar===m.token?"Confirmar cancelamento":"Cancelar")+'</button></div>'
+      :'<span class="s">Faltam menos de '+(prazo||2)+' h. Para alterar, fale com a barbearia.</span>')+'</div>').join("")+'</div>';
+}
 function render(){
   const app=$("#app");
   if(E.feito){
     const f=E.feito;
     app.innerHTML='<div class="ok"><div class="ck"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>'
-      +'<h1>Horário marcado</h1><p>'+esc(f.servico)+' na '+esc(INFO.nome)+'</p>'
-      +'<div class="resumo" style="width:100%;text-align:left"><span class="k">'+fmt(f.dia,{weekday:"long",day:"numeric",month:"long"})+'</span><span class="v">'+esc(f.hora)+'</span><span class="k">'+esc(f.nome)+'</span></div>'
-      +'<p>Se precisar remarcar ou cancelar, fale com a barbearia pelo WhatsApp.</p>'
-      +'<button class="btn2" data-act="outro">Marcar outro horário</button></div>';
+      +'<h1>'+f.titulo+'</h1><p>'+esc(f.servico)+' na '+esc(INFO.nome)+'</p>'
+      +'<div class="resumo" style="width:100%;text-align:left"><span class="k">'+fmt(f.dia,{weekday:"long",day:"numeric",month:"long"})+'</span><span class="v">'+esc(f.hora)+'</span>'+(f.nome?'<span class="k">'+esc(f.nome)+'</span>':"")+'</div>'
+      +(f.semanas&&f.semanas.length?'<div class="grp" style="width:100%;text-align:left"><div class="meu"><div class="main"><span class="t">Você é cliente mensal</span><br><span class="s">Quer garantir o mesmo horário nas próximas semanas de '+fmt(f.dia,{month:"long"})+'? Dias: '+f.semanas.map(d=>parse(d).getDate()).join(", ")+'.</span></div>'
+        +'<div class="mb" style="grid-template-columns:1fr"><button data-act="repetir"'+(E.enviando?" disabled":"")+'>'+(E.enviando?"Marcando…":"Marcar toda "+fmt(f.dia,{weekday:"long"})+" às "+esc(f.hora))+'</button></div></div></div>':"")
+      +(f.repetiu?'<div class="nota'+(f.repetiu.ruim?" ruim":"")+'" style="width:100%;text-align:left">'+esc(f.repetiu.txt)+'</div>':"")
+      +'<p>Para remarcar ou cancelar, abra este mesmo link neste aparelho: seu horário aparece no topo da página.</p>'
+      +(f.token?'<button class="btn2" data-act="copiar" data-tk="'+esc(f.token)+'">Copiar link do meu horário</button><p class="msg" id="msg" style="color:var(--fg2);text-align:center"></p>':"")
+      +'<button class="btn2" data-act="outro">Voltar para a agenda</button></div>';
     return;
   }
-  const sv=INFO.servicos.find(s=>s.id===E.servico);
+  const rm=E.remarcar,sv=INFO.servicos.find(s=>s.id===E.servico);
   let h='<header class="head"><div class="sub">Agendamento online</div><h1>'+esc(INFO.nome)+'</h1></header>';
-  if(!INFO.servicos.length){app.innerHTML=h+'<div class="vazio">A barbearia ainda não cadastrou os serviços. Tente de novo mais tarde.</div>';return}
-  h+='<div class="lbl"><b>1</b>Escolha o serviço</div><div class="grp">'
-    +INFO.servicos.map(s=>'<button class="row'+(s.id===E.servico?" on":"")+'" data-act="servico" data-id="'+esc(s.id)+'" aria-pressed="'+(s.id===E.servico)+'"><span class="mk"></span><span class="main"><span class="t">'+esc(s.nome)+'</span><br><span class="s">'+(Number(s.duracao)||30)+' min</span></span><span class="num">'+R(s.preco)+'</span></button>').join("")+'</div>';
-  if(sv){
+  if(E.aviso)h+='<div class="nota'+(E.avisoRuim?" ruim":"")+'">'+esc(E.aviso)+'</div>';
+  let n=0;const passo=t=>'<div class="lbl"><b>'+(++n)+'</b>'+t+'</div>';
+  if(rm){
+    h+='<div class="resumo"><span class="k">Remarcando '+esc(rm.servicoNome)+'</span><span class="v">'+quando(rm.data,esc(rm.hora))+'</span><span class="k">Escolha o novo dia e horário. O horário atual só é liberado quando você confirmar.</span></div>'
+      +'<button class="btn2" data-act="desistir">Manter como está</button>';
+  }else{
+    h+=blocoMeus();
+    if(!INFO.servicos.length){app.innerHTML=h+'<div class="vazio">A barbearia ainda não cadastrou os serviços. Tente de novo mais tarde.</div>';return}
+    h+=passo(MEUS.length?"Marcar outro horário: escolha o serviço":"Escolha o serviço")+'<div class="grp">'
+      +INFO.servicos.map(s=>'<button class="row'+(s.id===E.servico?" on":"")+'" data-act="servico" data-id="'+esc(s.id)+'" aria-pressed="'+(s.id===E.servico)+'"><span class="mk"></span><span class="main"><span class="t">'+esc(s.nome)+'</span><br><span class="s">'+(Number(s.duracao)||30)+' min</span></span><span class="num">'+R(s.preco)+'</span></button>').join("")+'</div>';
+  }
+  if(sv||rm){
     let dias="";
     for(let i=0;i<DIAS;i++){const d=addDays(INFO.hoje,i),sem=!livres(d).length;
       dias+='<button class="dia'+(d===E.dia?" on":"")+'" data-act="dia" data-d="'+d+'"'+(sem?" disabled":"")+' aria-label="'+fmt(d,{weekday:"long",day:"numeric",month:"long"})+(sem?", sem horários":"")+'"><span class="w">'+(i===0?"hoje":fmt(d,{weekday:"short"}).replace(".",""))+'</span><span class="n num">'+parse(d).getDate()+'</span><span class="m">'+fmt(d,{month:"short"}).replace(".","")+'</span></button>'}
-    h+='<div class="lbl"><b>2</b>Escolha o dia</div><div class="dias">'+dias+'</div>';
+    h+=passo("Escolha o dia")+'<div class="dias">'+dias+'</div>';
     if(E.dia){
       const sl=livres(E.dia);
-      h+='<div class="lbl"><b>3</b>Horários livres · '+fmt(E.dia,{weekday:"long",day:"numeric",month:"long"})+'</div>'
+      h+=passo("Horários livres · "+fmt(E.dia,{weekday:"long",day:"numeric",month:"long"}))
         +(sl.length?'<div class="slots">'+sl.map(t=>'<button class="slot num'+(t===E.hora?" on":"")+'" data-act="hora" data-h="'+t+'" aria-pressed="'+(t===E.hora)+'">'+t+'</button>').join("")+'</div>':'<div class="vazio">Sem horários livres nesse dia. Escolha outro dia.</div>');
       if(E.erro&&!E.hora)h+='<p class="msg" role="alert">'+esc(E.erro)+'</p>';
     }
-    if(E.dia&&E.hora){
-      h+='<div class="lbl"><b>4</b>Seus dados</div><div class="grp"><label class="row"><span>Nome</span><input id="f-nome" type="text" autocomplete="name" placeholder="Seu nome" value="'+esc(E.nome)+'"></label>'
+    if(E.dia&&E.hora&&rm){
+      h+='<div class="resumo"><span class="k">Novo horário · '+esc(rm.servicoNome)+'</span><span class="v">'+quando(E.dia,esc(E.hora))+'</span></div>'
+        +'<p class="msg" id="msg" role="alert">'+esc(E.erro)+'</p>'
+        +'<button class="btn" data-act="confirmar-remarcar"'+(E.enviando?" disabled":"")+'>'+(E.enviando?"Remarcando…":"Confirmar novo horário")+'</button>';
+    }else if(E.dia&&E.hora){
+      h+=passo("Seus dados")+'<div class="grp"><label class="row"><span>Nome</span><input id="f-nome" type="text" autocomplete="name" placeholder="Seu nome" value="'+esc(E.nome)+'"></label>'
         +'<label class="row"><span>WhatsApp</span><input id="f-tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="(11) 90000-0000" value="'+esc(E.tel)+'"></label></div>'
-        +'<div class="resumo"><span class="k">'+esc(sv.nome)+' · '+R(sv.preco)+'</span><span class="v">'+fmt(E.dia,{weekday:"short",day:"numeric",month:"short"})+' às '+esc(E.hora)+'</span></div>'
+        +'<div class="resumo"><span class="k">'+esc(sv.nome)+' · '+R(sv.preco)+'</span><span class="v">'+quando(E.dia,esc(E.hora))+'</span></div>'
         +'<p class="msg" id="msg" role="alert">'+esc(E.erro)+'</p>'
         +'<button class="btn" data-act="confirmar"'+(E.enviando?" disabled":"")+'>'+(E.enviando?"Marcando…":"Confirmar horário")+'</button>';
     }
@@ -159,6 +204,13 @@ async function ocupados(){
   const r=await sb.rpc("agenda_ocupados",{p_slug:SLUG,p_de:INFO.hoje,p_ate:addDays(INFO.hoje,DIAS)});
   if(!r.error&&Array.isArray(r.data))OCUP=r.data;
 }
+async function meus(){
+  if(!TK.length){MEUS=[];return}
+  const r=await sb.rpc("agenda_meus",{p_slug:SLUG,p_tokens:TK});
+  if(!r.error&&Array.isArray(r.data))MEUS=r.data;
+}
+const atualiza=()=>Promise.all([ocupados(),meus()]);
+const erroTxt=(e,padrao)=>{const m=String(e&&e.message||"");return m&&m.length<140&&!/fetch|network|JSON|function|schema/i.test(m)?m:padrao};
 async function iniciar(){
   const falha=m=>{$("#app").innerHTML='<div class="vazio">'+m+'</div>'};
   if(!SLUG)return falha("Link incompleto. Peça o link de agendamento para a barbearia.");
@@ -168,15 +220,59 @@ async function iniciar(){
   if(r.error)return falha("Não foi possível carregar a agenda. Confira a internet e tente de novo.");
   if(!r.data)return falha("Barbearia não encontrada. Confira o link com a barbearia.");
   INFO=r.data;document.title="Agendar · "+INFO.nome;
+  guardaToken(new URLSearchParams(location.search).get("h"));
   if(INFO.servicos.length===1)E.servico=INFO.servicos[0].id;
-  await ocupados();render();
+  await atualiza();render();
 }
 function guarda(){const n=$("#f-nome"),t=$("#f-tel");if(n)E.nome=n.value;if(t)E.tel=t.value}
+function limpa(){E.dia="";E.hora="";E.erro="";E.cancelar="";E.aviso=""}
 const ACT={
-  servico(el){guarda();E.servico=el.dataset.id;E.hora="";E.erro="";if(E.dia&&!livres(E.dia).length)E.dia="";render()},
+  servico(el){guarda();E.servico=el.dataset.id;E.hora="";E.erro="";E.aviso="";if(E.dia&&!livres(E.dia).length)E.dia="";render()},
   dia(el){guarda();E.dia=el.dataset.d;E.hora="";E.erro="";render()},
   hora(el){guarda();E.hora=el.dataset.h;E.erro="";render();const b=$(".btn");if(b)b.scrollIntoView({block:"end",behavior:"smooth"})},
-  outro(){E.feito=null;E.dia="";E.hora="";E.erro="";render();window.scrollTo(0,0)},
+  outro(){E.feito=null;limpa();render();window.scrollTo(0,0)},
+  remarcar(el){const m=MEUS.find(x=>x.token===el.dataset.tk);if(!m)return;guarda();limpa();E.remarcar=m;render();window.scrollTo(0,0)},
+  desistir(){E.remarcar=null;limpa();render()},
+  copiar(el){
+    const t=linkMeu(el.dataset.tk),m=$("#msg");
+    const falhou=()=>{if(m)m.textContent=t};
+    try{navigator.clipboard.writeText(t).then(()=>{if(m)m.textContent="Link copiado. Guarde para abrir em outro aparelho."},falhou)}catch(e){falhou()}
+  },
+  async repetir(){
+    const f=E.feito;if(!f||!f.token)return;
+    E.enviando=true;render();
+    const r=await sb.rpc("agenda_repetir",{p_slug:SLUG,p_token:f.token});
+    E.enviando=false;f.semanas=[];
+    if(r.error)f.repetiu={ruim:true,txt:erroTxt(r.error,"Não foi possível marcar as outras semanas. Confira a internet e tente de novo.")};
+    else{
+      const c=r.data.criados||[],p=r.data.pulados||[],dia=d=>fmt(d,{day:"numeric",month:"numeric"});
+      c.forEach(x=>guardaToken(x.token));
+      f.repetiu={ruim:!c.length,txt:(c.length?"Também marcado: "+c.map(x=>dia(x.data)).join(", ")+".":"Nenhuma das outras semanas tinha esse horário livre.")+(p.length&&c.length?" Sem vaga em: "+p.map(dia).join(", ")+".":"")};
+    }
+    await atualiza();render();
+  },
+  async cancelar(el){
+    const tk=el.dataset.tk;
+    if(E.cancelar!==tk){E.cancelar=tk;return render()}
+    E.cancelar="";
+    const r=await sb.rpc("agenda_cancelar",{p_slug:SLUG,p_token:tk});
+    E.avisoRuim=!!r.error;
+    E.aviso=r.error?erroTxt(r.error,"Não foi possível cancelar agora. Confira a internet e tente de novo."):"Horário cancelado. A barbearia já foi avisada pela agenda.";
+    await atualiza();render();window.scrollTo(0,0);
+  },
+  async "confirmar-remarcar"(){
+    const rm=E.remarcar;if(!rm)return;
+    E.erro="";E.enviando=true;render();
+    const r=await sb.rpc("agenda_remarcar",{p_slug:SLUG,p_token:rm.token,p_data:E.dia,p_hora:E.hora});
+    E.enviando=false;
+    if(r.error){
+      E.erro=erroTxt(r.error,"Não foi possível remarcar agora. Confira a internet e tente de novo.");
+      await atualiza();if(!livres(E.dia).includes(E.hora))E.hora="";
+      return render();
+    }
+    E.feito={titulo:"Horário remarcado",servico:rm.servicoNome,dia:E.dia,hora:E.hora,nome:"",token:rm.token};
+    E.remarcar=null;await atualiza();render();window.scrollTo(0,0);
+  },
   async confirmar(){
     guarda();
     const nome=E.nome.trim(),tel=telDig(E.tel);
@@ -187,14 +283,15 @@ const ACT={
     const r=await sb.rpc("agenda_marcar",{p_slug:SLUG,p_servico:E.servico,p_data:E.dia,p_hora:E.hora,p_nome:nome,p_telefone:E.tel.trim()});
     E.enviando=false;
     if(r.error){
-      const m=String(r.error.message||"");
-      E.erro=/[áéíóúãõç]|\.$/i.test(m)&&m.length<140&&!/fetch|network/i.test(m)?m:"Não foi possível marcar agora. Confira a internet e tente de novo.";
-      await ocupados();if(!livres(E.dia).includes(E.hora))E.hora="";
+      E.erro=erroTxt(r.error,"Não foi possível marcar agora. Confira a internet e tente de novo.");
+      await atualiza();if(!livres(E.dia).includes(E.hora))E.hora="";
       return render();
     }
     try{localStorage.setItem("agenda.nome",nome);localStorage.setItem("agenda.tel",E.tel.trim())}catch(e){}
-    E.feito={servico:sv?sv.nome:"",dia:E.dia,hora:E.hora,nome:nome};
-    await ocupados();render();window.scrollTo(0,0);
+    guardaToken(r.data&&r.data.token);
+    E.feito={titulo:"Horário marcado",servico:sv?sv.nome:"",dia:E.dia,hora:E.hora,nome:nome,token:r.data&&r.data.token,semanas:[]};
+    if(r.data&&r.data.mensalista)for(let d=addDays(E.dia,7);d.slice(0,7)===E.dia.slice(0,7);d=addDays(d,7))E.feito.semanas.push(d);
+    await atualiza();render();window.scrollTo(0,0);
   }
 };
 document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(el&&!el.disabled&&ACT[el.dataset.act])ACT[el.dataset.act](el)});
