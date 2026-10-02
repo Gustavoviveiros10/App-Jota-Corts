@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05070D">
+<title>Agendar horário</title>
+<style>
+/* Página pública de agendamento. Mesmo tema do painel: preto azulado com azul elétrico. */
+:root{
+  color-scheme:dark;
+  --bg:#05070D; --cell:rgba(255,255,255,.045); --fg:#F3F6FC; --fg2:#8C96AB; --fg3:#4B546A;
+  --line:rgba(255,255,255,.09); --fill:rgba(255,255,255,.07);
+  --tint:#5B9DFF; --tint-hi:#9CC3FF; --on-tint:#FFFFFF;
+  --grad:linear-gradient(135deg,#5AA2FF 0%,#2167FF 100%); --glow:rgba(47,123,255,.55);
+  --green:#3DDC97; --green-bg:rgba(61,220,151,.14); --red:#FF6B7A; --red-bg:rgba(255,107,122,.14);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;
+  --round:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:17px;line-height:1.3;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(110% 55% at 50% -12%,rgba(47,123,255,.26),transparent 62%)}
+button,input{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
+:focus-visible{outline:2px solid var(--tint);outline-offset:2px;border-radius:8px}
+.num{font-family:var(--round);font-variant-numeric:tabular-nums}
+#app{max-width:520px;margin:0 auto;padding-inline:16px;padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
+.head .sub{font-size:13px;color:var(--tint-hi);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.head h1{margin:2px 0 0;font-size:34px;font-weight:700;letter-spacing:-.4px;line-height:1.1;text-wrap:balance}
+.lbl{font-size:13px;color:var(--fg2);text-transform:uppercase;letter-spacing:.3px;padding:0 4px;margin-bottom:-8px;display:flex;gap:8px;align-items:center}
+.lbl b{width:20px;height:20px;border-radius:10px;background:rgba(91,157,255,.18);color:var(--tint-hi);display:grid;place-items:center;font-size:12px}
+.grp{background:var(--cell);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 16px;width:100%}
+.row+.row{border-top:1px solid var(--line)}
+.row .main{flex:1;min-width:0}
+.row .t{font-size:17px;overflow-wrap:anywhere}
+.row .s{font-size:14px;color:var(--fg2)}
+.row .mk{width:22px;height:22px;border-radius:11px;border:1.5px solid var(--fg3);flex:none}
+.row.on{background:rgba(91,157,255,.12)}
+.row.on .mk{border:0;background:var(--grad);box-shadow:0 4px 12px -2px var(--glow);position:relative}
+.row.on .mk::after{content:"";position:absolute;left:8px;top:4px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+label.row>span:first-child{flex:none}
+.row input{flex:1;min-width:0;border:0;background:none;text-align:right;outline:none;height:30px}
+.row input::placeholder{color:var(--fg3)}
+.dias{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:0 -2px;scrollbar-width:none}
+.dias::-webkit-scrollbar{display:none}
+.dia{flex:none;width:62px;padding:10px 0;border-radius:16px;background:var(--cell);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:2px}
+.dia .w{font-size:12px;color:var(--fg2);text-transform:uppercase;font-weight:600}
+.dia .n{font-size:22px;font-weight:600}
+.dia .m{font-size:11px;color:var(--fg2)}
+.dia.on{background:var(--grad);border-color:transparent;box-shadow:0 8px 22px -8px var(--glow)}
+.dia.on .w,.dia.on .m{color:rgba(255,255,255,.85)}
+.dia:disabled{opacity:.35;cursor:default}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{height:46px;border-radius:13px;background:var(--cell);border:1px solid var(--line);text-align:center;font-weight:600}
+.slot.on{background:var(--grad);border-color:transparent;box-shadow:0 8px 22px -8px var(--glow)}
+.vazio{background:var(--cell);border:1px solid var(--line);border-radius:18px;padding:22px 18px;text-align:center;color:var(--fg2);font-size:15px}
+.resumo{background:linear-gradient(160deg,#15367C 0%,#0C1B40 52%,#0A1124 100%);border:1px solid rgba(110,165,255,.34);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:4px;box-shadow:0 24px 50px -24px var(--glow)}
+.resumo .k{font-size:13px;color:rgba(214,228,255,.72)}
+.resumo .v{font-family:var(--round);font-size:26px;font-weight:700;letter-spacing:-.3px}
+.btn{height:54px;border-radius:16px;background:var(--grad);color:var(--on-tint);font-weight:600;text-align:center;box-shadow:0 12px 28px -12px var(--glow);width:100%}
+.btn:disabled{opacity:.4;box-shadow:none;cursor:default}
+.btn2{height:46px;color:var(--tint);text-align:center;width:100%}
+.msg{margin:0;font-size:14px;color:var(--red);min-height:18px;padding:0 4px}
+.ok{align-items:center;text-align:center;gap:14px;display:flex;flex-direction:column;padding-top:8vh}
+.ok .ck{width:72px;height:72px;border-radius:36px;background:var(--green-bg);display:grid;place-items:center;color:var(--green)}
+.ok h1{margin:0;font-size:28px;font-weight:700}
+.ok p{margin:0;color:var(--fg2);font-size:15px;max-width:34ch}
+.foot{font-size:12px;color:var(--fg3);text-align:center}
+@media (max-width:360px){.slots{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<main id="app"><div class="vazio">Carregando…</div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parse=s=>{const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2])};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
+const mins=h=>{const p=String(h||"0:0").split(":").map(Number);return p[0]*60+(p[1]||0)};
+const hm=m=>pad(Math.floor(m/60))+":"+pad(m%60);
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const R=v=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);
+const fmt=(s,o)=>parse(s).toLocaleDateString("pt-BR",o);
+const telDig=t=>{const d=String(t).replace(/\D/g,"");return d.length>11&&d.slice(0,2)==="55"?d.slice(2):d};
+
+const CFG=window.APP_CONFIG||{};
+const SLUG=(new URLSearchParams(location.search).get("b")||"").toLowerCase();
+const DIAS=14;      // quantos dias à frente o cliente pode marcar
+const PASSO=30;     // intervalo entre opções de horário, em minutos
+const ANTECEDENCIA=30; // não oferece horários a menos de X minutos de agora
+let sb=null,INFO=null,OCUP=[];
+const E={servico:"",dia:"",hora:"",enviando:false,feito:null,erro:""};
+try{E.nome=localStorage.getItem("agenda.nome")||"";E.tel=localStorage.getItem("agenda.tel")||""}catch(e){E.nome="";E.tel=""}
+
+function folga(d){return(INFO.config.folgas||[]).includes(parse(d).getDay())}
+function livres(d){
+  const sv=INFO.servicos.find(s=>s.id===E.servico);
+  if(!sv||folga(d))return[];
+  const c=INFO.config,dur=Number(sv.duracao)||30,fim=mins(c.fecha);
+  let cur=mins(c.abre);
+  if(d===INFO.hoje)cur=Math.max(cur,Math.ceil((mins(INFO.agora)+ANTECEDENCIA)/10)*10);
+  const oc=OCUP.filter(o=>o.data===d).map(o=>[o.ini,o.fim]);
+  if(c.almocoIni&&c.almocoFim&&mins(c.almocoFim)>mins(c.almocoIni))oc.push([mins(c.almocoIni),mins(c.almocoFim)]);
+  oc.sort((a,b)=>a[0]-b[0]);
+  const out=[];
+  const fatia=(a,b)=>{for(let t=a;t+dur<=b;t+=PASSO)out.push(hm(t))};
+  for(const o of oc){if(o[0]>cur&&cur<fim)fatia(cur,Math.min(o[0],fim));cur=Math.max(cur,o[1])}
+  if(cur<fim)fatia(cur,fim);
+  return out;
+}
+
+function render(){
+  const app=$("#app");
+  if(E.feito){
+    const f=E.feito;
+    app.innerHTML='<div class="ok"><div class="ck"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>'
+      +'<h1>Horário marcado</h1><p>'+esc(f.servico)+' na '+esc(INFO.nome)+'</p>'
+      +'<div class="resumo" style="width:100%;text-align:left"><span class="k">'+fmt(f.dia,{weekday:"long",day:"numeric",month:"long"})+'</span><span class="v">'+esc(f.hora)+'</span><span class="k">'+esc(f.nome)+'</span></div>'
+      +'<p>Se precisar remarcar ou cancelar, fale com a barbearia pelo WhatsApp.</p>'
+      +'<button class="btn2" data-act="outro">Marcar outro horário</button></div>';
+    return;
+  }
+  const sv=INFO.servicos.find(s=>s.id===E.servico);
+  let h='<header class="head"><div class="sub">Agendamento online</div><h1>'+esc(INFO.nome)+'</h1></header>';
+  if(!INFO.servicos.length){app.innerHTML=h+'<div class="vazio">A barbearia ainda não cadastrou os serviços. Tente de novo mais tarde.</div>';return}
+  h+='<div class="lbl"><b>1</b>Escolha o serviço</div><div class="grp">'
+    +INFO.servicos.map(s=>'<button class="row'+(s.id===E.servico?" on":"")+'" data-act="servico" data-id="'+esc(s.id)+'" aria-pressed="'+(s.id===E.servico)+'"><span class="mk"></span><span class="main"><span class="t">'+esc(s.nome)+'</span><br><span class="s">'+(Number(s.duracao)||30)+' min</span></span><span class="num">'+R(s.preco)+'</span></button>').join("")+'</div>';
+  if(sv){
+    let dias="";
+    for(let i=0;i<DIAS;i++){const d=addDays(INFO.hoje,i),sem=!livres(d).length;
+      dias+='<button class="dia'+(d===E.dia?" on":"")+'" data-act="dia" data-d="'+d+'"'+(sem?" disabled":"")+' aria-label="'+fmt(d,{weekday:"long",day:"numeric",month:"long"})+(sem?", sem horários":"")+'"><span class="w">'+(i===0?"hoje":fmt(d,{weekday:"short"}).replace(".",""))+'</span><span class="n num">'+parse(d).getDate()+'</span><span class="m">'+fmt(d,{month:"short"}).replace(".","")+'</span></button>'}
+    h+='<div class="lbl"><b>2</b>Escolha o dia</div><div class="dias">'+dias+'</div>';
+    if(E.dia){
+      const sl=livres(E.dia);
+      h+='<div class="lbl"><b>3</b>Horários livres · '+fmt(E.dia,{weekday:"long",day:"numeric",month:"long"})+'</div>'
+        +(sl.length?'<div class="slots">'+sl.map(t=>'<button class="slot num'+(t===E.hora?" on":"")+'" data-act="hora" data-h="'+t+'" aria-pressed="'+(t===E.hora)+'">'+t+'</button>').join("")+'</div>':'<div class="vazio">Sem horários livres nesse dia. Escolha outro dia.</div>');
+      if(E.erro&&!E.hora)h+='<p class="msg" role="alert">'+esc(E.erro)+'</p>';
+    }
+    if(E.dia&&E.hora){
+      h+='<div class="lbl"><b>4</b>Seus dados</div><div class="grp"><label class="row"><span>Nome</span><input id="f-nome" type="text" autocomplete="name" placeholder="Seu nome" value="'+esc(E.nome)+'"></label>'
+        +'<label class="row"><span>WhatsApp</span><input id="f-tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="(11) 90000-0000" value="'+esc(E.tel)+'"></label></div>'
+        +'<div class="resumo"><span class="k">'+esc(sv.nome)+' · '+R(sv.preco)+'</span><span class="v">'+fmt(E.dia,{weekday:"short",day:"numeric",month:"short"})+' às '+esc(E.hora)+'</span></div>'
+        +'<p class="msg" id="msg" role="alert">'+esc(E.erro)+'</p>'
+        +'<button class="btn" data-act="confirmar"'+(E.enviando?" disabled":"")+'>'+(E.enviando?"Marcando…":"Confirmar horário")+'</button>';
+    }
+  }
+  app.innerHTML=h+'<p class="foot">Seus dados são usados só para a barbearia confirmar o seu horário.</p>';
+}
+
+async function ocupados(){
+  const r=await sb.rpc("agenda_ocupados",{p_slug:SLUG,p_de:INFO.hoje,p_ate:addDays(INFO.hoje,DIAS)});
+  if(!r.error&&Array.isArray(r.data))OCUP=r.data;
+}
+async function iniciar(){
+  const falha=m=>{$("#app").innerHTML='<div class="vazio">'+m+'</div>'};
+  if(!SLUG)return falha("Link incompleto. Peça o link de agendamento para a barbearia.");
+  if(!window.supabase||!CFG.SUPABASE_URL)return falha("Não foi possível carregar. Confira a internet e abra o link de novo.");
+  sb=window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+  const r=await sb.rpc("agenda_info",{p_slug:SLUG});
+  if(r.error)return falha("Não foi possível carregar a agenda. Confira a internet e tente de novo.");
+  if(!r.data)return falha("Barbearia não encontrada. Confira o link com a barbearia.");
+  INFO=r.data;document.title="Agendar · "+INFO.nome;
+  if(INFO.servicos.length===1)E.servico=INFO.servicos[0].id;
+  await ocupados();render();
+}
+function guarda(){const n=$("#f-nome"),t=$("#f-tel");if(n)E.nome=n.value;if(t)E.tel=t.value}
+const ACT={
+  servico(el){guarda();E.servico=el.dataset.id;E.hora="";E.erro="";if(E.dia&&!livres(E.dia).length)E.dia="";render()},
+  dia(el){guarda();E.dia=el.dataset.d;E.hora="";E.erro="";render()},
+  hora(el){guarda();E.hora=el.dataset.h;E.erro="";render();const b=$(".btn");if(b)b.scrollIntoView({block:"end",behavior:"smooth"})},
+  outro(){E.feito=null;E.dia="";E.hora="";E.erro="";render();window.scrollTo(0,0)},
+  async confirmar(){
+    guarda();
+    const nome=E.nome.trim(),tel=telDig(E.tel);
+    if(nome.length<2){E.erro="Informe seu nome.";return render()}
+    if(tel.length<10||tel.length>11){E.erro="Informe seu WhatsApp com DDD.";return render()}
+    E.erro="";E.enviando=true;render();
+    const sv=INFO.servicos.find(s=>s.id===E.servico);
+    const r=await sb.rpc("agenda_marcar",{p_slug:SLUG,p_servico:E.servico,p_data:E.dia,p_hora:E.hora,p_nome:nome,p_telefone:E.tel.trim()});
+    E.enviando=false;
+    if(r.error){
+      const m=String(r.error.message||"");
+      E.erro=/[áéíóúãõç]|\.$/i.test(m)&&m.length<140&&!/fetch|network/i.test(m)?m:"Não foi possível marcar agora. Confira a internet e tente de novo.";
+      await ocupados();if(!livres(E.dia).includes(E.hora))E.hora="";
+      return render();
+    }
+    try{localStorage.setItem("agenda.nome",nome);localStorage.setItem("agenda.tel",E.tel.trim())}catch(e){}
+    E.feito={servico:sv?sv.nome:"",dia:E.dia,hora:E.hora,nome:nome};
+    await ocupados();render();window.scrollTo(0,0);
+  }
+};
+document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(el&&!el.disabled&&ACT[el.dataset.act])ACT[el.dataset.act](el)});
+iniciar();
+})();
+</script>
+</body>
+</html>
