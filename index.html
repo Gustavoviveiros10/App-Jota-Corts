@@ -170,6 +170,15 @@ textarea{width:100%;border:0;background:none;outline:none;resize:vertical;min-he
 .stats div{background:var(--cell2);border-radius:12px;padding:10px;text-align:center;min-width:0}
 .stats b{display:block;font-family:var(--round);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stats span{font-size:12px;color:var(--fg2)}
+.row input.ck{appearance:none;-webkit-appearance:none;flex:none;margin:0;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--fg3);cursor:pointer;position:relative}
+.row input.ck:checked{border:0;background:var(--grad);box-shadow:0 4px 12px -2px var(--glow)}
+.row input.ck:checked::after{content:"";position:absolute;left:8px;top:4px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.ev{width:34px;height:34px;border-radius:17px;display:grid;place-items:center;flex:none}
+.ev svg{width:18px;height:18px}
+.ev.marcou{background:var(--green-bg);color:var(--green)}
+.ev.remarcou{background:rgba(91,157,255,.16);color:var(--tint-hi)}
+.ev.cancelou{background:var(--red-bg);color:var(--red)}
+.novo{width:8px;height:8px;border-radius:4px;background:var(--tint);flex:none;box-shadow:0 0 0 4px rgba(91,157,255,.18)}
 .row input.sw{appearance:none;-webkit-appearance:none;flex:none;margin:0 0 0 auto;width:51px;height:31px;border-radius:16px;background:var(--fill2);position:relative;cursor:pointer;transition:background .2s}
 .row input.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:14px;background:#fff;box-shadow:0 1px 3px var(--shadow);transition:transform .2s}
 .row input.sw:checked{background:#34C759}
@@ -629,6 +638,38 @@ function vServicos(){
     +'<p class="aviso" style="color:var(--fg2)">Coloque esse link na bio do Instagram e na mensagem de saudação do WhatsApp Business. O que o cliente marcar cai direto na sua agenda, respeitando bloqueios, almoço e folgas.</p>'
     +'<div class="lbl">Conta</div><div class="grp"><div class="row"><span class="main s">'+esc(USER&&USER.email||"")+'</span></div><button class="row act danger" data-act="sair">Sair</button></div>';
 }
+let VISTO="";
+try{VISTO=localStorage.getItem("navalha.visto")||""}catch(e){}
+setTimeout(()=>{try{localStorage.setItem("navalha.visto",new Date().toISOString())}catch(e){}},8000);
+function haTempo(t){
+  const m=Math.round((Date.now()-new Date(t).getTime())/60000);
+  if(!(m>=1))return"agora";
+  if(m<60)return"há "+m+" min";
+  if(m<1440)return"há "+Math.floor(m/60)+" h";
+  const d=Math.floor(m/1440);return"há "+d+(d===1?" dia":" dias");
+}
+// Últimas ações dos clientes pelo link: marcou, remarcou, cancelou
+function atualizacoes(){
+  const ev=[];
+  for(const a of S.agendamentos){
+    if(a.origem==="link"&&a.criadoEm)ev.push({t:a.criadoEm,tipo:"marcou",a});
+    if(a.remarcadoEm)ev.push({t:a.remarcadoEm,tipo:"remarcou",a});
+    if(a.canceladoEm&&a.canceladoPor==="cliente")ev.push({t:a.canceladoEm,tipo:"cancelou",a});
+  }
+  return ev.sort((x,y)=>String(y.t).localeCompare(String(x.t))).slice(0,8);
+}
+function blocoAtualizacoes(){
+  const ev=atualizacoes(),qd=a=>fmt(a.data,{weekday:"short",day:"numeric",month:"short"})+" às "+a.hora;
+  const ic={marcou:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+    remarcou:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/></svg>',
+    cancelou:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'};
+  if(S.carregando)return"";
+  if(!ev.length)return'<div class="lbl">Últimas atualizações</div><div class="grp"><div class="row"><span class="main s">Quando um cliente marcar, remarcar ou cancelar pelo link, aparece aqui.</span></div></div>';
+  return'<div class="lbl">Últimas atualizações</div><div class="grp">'+ev.map(e=>{
+    const a=e.a,de=a.remarcadoDe?String(a.remarcadoDe).split(" "):null;
+    const sub=e.tipo==="remarcou"&&de?"de "+fmt(de[0],{day:"numeric",month:"numeric"})+" "+de[1]+" para "+qd(a):qd(a);
+    return'<button class="row" data-act="ver-ag" data-id="'+esc(a.id)+'"><span class="ev '+e.tipo+'">'+ic[e.tipo]+'</span><span class="main"><span class="t">'+esc(a.clienteNome)+' '+e.tipo+'</span><br><span class="s">'+esc(a.servicoNome)+" · "+esc(sub)+'</span><br><span class="s">'+haTempo(e.t)+'</span></span>'+(VISTO&&e.t>VISTO?'<span class="novo" title="Novo"></span>':"")+IC.rs+'</button>'}).join("")+'</div>';
+}
 function vInicio(){
   const em=(a,r)=>a.data>=r[0]&&a.data<=r[1];
   const p=periodo("mes",HOJE),pa=periodo("mes",addMonths(HOJE,-1));
@@ -658,7 +699,7 @@ function vInicio(){
   if(ns)at+='<button class="row" data-act="ir-sumidos"><span class="main"><span class="t">'+ns+(ns===1?" cliente sumido":" clientes sumidos")+'</span><br><span class="s">Sem visita há mais de 30 dias e sem horário marcado</span></span>'+IC.rs+'</button>';
   const h=n.getHours(),oi=h<12?"Bom dia":h<18?"Boa tarde":"Boa noite";
   return '<header class="head"><div><div class="sub">'+oi+" · "+fmt(HOJE,{weekday:"long",day:"numeric",month:"long"})+'</div><h1>'+esc(cfg().nome||oi)+'</h1></div><div class="head-actions"><button class="plus" data-act="novo-ag" data-d="'+HOJE+'" aria-label="Marcar horário">'+IC.plus+'</button></div></header>'
-    +banner()+hero
+    +banner()+hero+blocoAtualizacoes()
     +'<div class="lbl">Agenda de hoje</div>'+resumo(hoje)+px+quick()+listaDia(HOJE)
     +(at?'<div class="lbl">Para acompanhar</div><div class="grp">'+at+'</div>':"");
 }
@@ -689,11 +730,12 @@ function sheetAg(a,preCliente){
   const cs=S.clientes.slice().sort((x,y)=>String(x.nome).localeCompare(String(y.nome),"pt-BR"));
   const ss=S.servicos.slice().sort((x,y)=>String(x.nome).localeCompare(String(y.nome),"pt-BR"));
   const novoCli=!cs.length;
-  const sid=a.servicoId||(ss[0]?ss[0].id:"");
-  const sv=ss.find(s=>s.id===sid);
+  const sids=a.servicoIds&&a.servicoIds.length?a.servicoIds:(a.servicoId?[a.servicoId]:(ss[0]?[ss[0].id]:[]));
+  const sv=ss.find(s=>sids.includes(s.id));
+  const somaPreco=ss.filter(s=>sids.includes(s.id)).reduce((t,s)=>t+(Number(s.preco)||0),0);
   const cSel=cs.find(c=>c.id===cid)||(novoCli?null:cs[0]);
   const mensal=!!(cSel&&cSel.mensalista);
-  const valor=a.id?a.valor:(mensal?0:(sv?sv.preco:0));
+  const valor=a.id?a.valor:(mensal?0:somaPreco);
   let hora=a.hora;
   if(!hora){const n=new Date();const m=Math.ceil((n.getHours()*60+n.getMinutes())/30)*30;hora=(a.data||S.dia)===HOJE&&m<1440?pad(Math.floor(m/60))+":"+pad(m%60):"09:00"}
   return nav(a.id?"Editar horário":"Novo horário","salvar-ag",a.id)
@@ -702,17 +744,25 @@ function sheetAg(a,preCliente){
       +'<option value="__novo"'+(novoCli?" selected":"")+'>+ Novo cliente…</option></select></label>'
       +'<label class="row" id="ag-novo-nome"'+(novoCli?"":" hidden")+'><span>Nome</span><input id="ag-nome" type="text" placeholder="Nome do cliente" autocomplete="off"></label>'
       +'<label class="row" id="ag-novo-tel"'+(novoCli?"":" hidden")+'><span>WhatsApp</span><input id="ag-tel" type="tel" placeholder="(11) 90000-0000" autocomplete="off"></label></div>'
-    +'<div class="grp"><label class="row"><span>Serviço</span><select id="ag-servico">'
-      +(ss.length?ss.map(s=>'<option value="'+esc(s.id)+'"'+(s.id===sid?" selected":"")+'>'+esc(s.nome)+'</option>').join(""):'<option value="">Atendimento</option>')
-      +'</select></label><label class="row"><span>Valor (R$)</span><input id="ag-valor" class="num" type="text" inputmode="decimal" value="'+esc(String(Number(valor)||0).replace(".",","))+'"></label></div>'
+    +'<div class="lbl">Serviços (pode escolher mais de um)</div><div class="grp">'
+      +(ss.length?ss.map(s=>'<label class="row"><input class="ck ag-sv" type="checkbox" value="'+esc(s.id)+'"'+(sids.includes(s.id)?" checked":"")+'><span class="main"><span class="t">'+esc(s.nome)+'</span><br><span class="s">'+(Number(s.duracao)||30)+' min</span></span><span class="num">'+R(s.preco)+'</span></label>').join(""):'<div class="row"><span class="main s">Nenhum serviço cadastrado. O horário entra como Atendimento, com 30 min.</span></div>')
+      +'<div class="row"><span class="main s" id="ag-soma"></span></div></div>'
+    +'<div class="grp"><label class="row"><span>Valor (R$)</span><input id="ag-valor" class="num" type="text" inputmode="decimal" value="'+esc(String(Number(valor)||0).replace(".",","))+'"></label></div>'
     +'<div class="grp"><label class="row"><span>Data</span><input id="ag-data" type="date" value="'+esc(a.data||S.dia)+'"></label><label class="row"><span>Hora</span><input id="ag-hora" type="time" step="300" value="'+esc(hora)+'"></label></div>'
     +(a.id?"":'<div class="grp" id="ag-rep-grp"'+(mensal?"":" hidden")+'><label class="row"><span>Repetir toda semana no mês</span><input class="sw" id="ag-rep" type="checkbox"></label></div>')
     +'<p class="aviso" id="ag-mens" style="color:var(--fg2)"'+(mensal?"":" hidden")+'>Cliente mensal: o atendimento fica coberto pela mensalidade (valor zero). Se for cobrar algo à parte, ajuste o valor.</p>'
     +'<p class="aviso" id="ag-aviso" hidden></p><p class="aviso erro" id="form-erro" hidden></p>';
 }
+// serviços marcados no formulário de horário: nome, duração e preço somados
+function svForm(){
+  const l=[...document.querySelectorAll(".ag-sv:checked")].map(e=>achar("servicos",e.value)).filter(Boolean);
+  return{lista:l,ids:l.map(s=>s.id),nome:l.length?l.map(s=>s.nome).join(" + "):"Atendimento",
+    dur:l.length?l.reduce((t,s)=>t+(Number(s.duracao)||30),0):30,preco:l.reduce((t,s)=>t+(Number(s.preco)||0),0)};
+}
+function somaForm(){const e=$("#ag-soma");if(!e)return;const v=svForm();e.textContent=v.lista.length?v.lista.length+(v.lista.length===1?" serviço":" serviços")+" · "+durTxt(v.dur)+" · "+R(v.preco):"Escolha pelo menos um serviço."}
 function checaConflito(){
   const av=$("#ag-aviso");if(!av)return;
-  const sv=S.servicos.find(s=>s.id===$("#ag-servico").value);
+  const sv={duracao:svForm().dur};
   const btn=$("#sheet .sh-nav [data-act='salvar-ag']");
   const c=conflito($("#ag-data").value,$("#ag-hora").value,sv?sv.duracao:30,btn?btn.dataset.id:"");
   av.hidden=!c;
@@ -729,7 +779,7 @@ function sheetBloq(x){
     +'<label class="row" id="bq-ini-row"'+(x.diaTodo?" hidden":"")+'><span>Das</span><input id="bq-ini" type="time" step="300" value="'+esc(x.diaTodo?"12:00":x.inicio||"12:00")+'"></label>'
     +'<label class="row" id="bq-fim-row"'+(x.diaTodo?" hidden":"")+'><span>Até</span><input id="bq-fim" type="time" step="300" value="'+esc(x.diaTodo?"13:00":x.fim||"13:00")+'"></label></div>'
     +'<div class="grp"><label class="row"><span>Motivo</span><input id="bq-motivo" type="text" value="'+esc(x.motivo||"")+'" placeholder="Médico, curso, folga…" autocomplete="off"></label></div>'
-    +'<p class="aviso" style="color:var(--fg2)">O período bloqueado some dos horários vagos. Almoço e folga da semana ficam na aba Serviços.</p><p class="aviso erro" id="form-erro" hidden></p>'
+    +'<p class="aviso" style="color:var(--fg2)">O período bloqueado some dos horários vagos. Almoço e folga da semana ficam na aba Ajustes.</p><p class="aviso erro" id="form-erro" hidden></p>'
     +(x.id?'<div class="grp"><button class="row act danger" data-act="excluir" data-col="bloqueios" data-id="'+esc(x.id)+'">Remover bloqueio</button></div>':"");
 }
 function sheetVagos(){
@@ -828,8 +878,8 @@ const ACT={
   "fat-nav"(el){S.fatRef=move(S.fatModo,S.fatRef,Number(el.dataset.n));render()},
   "fat-dia"(el){S.fatModo="dia";S.fatRef=el.dataset.d;render()},
   fechar(){fechar()},
-  "novo-ag"(el){abrir(sheetAg(el.dataset.d?{data:el.dataset.d,hora:el.dataset.h||""}:null,el.dataset.cli))},
-  "editar-ag"(el){const a=achar("agendamentos",el.dataset.id);if(a)abrir(sheetAg(a))},
+  "novo-ag"(el){abrir(sheetAg(el.dataset.d?{data:el.dataset.d,hora:el.dataset.h||""}:null,el.dataset.cli));somaForm()},
+  "editar-ag"(el){const a=achar("agendamentos",el.dataset.id);if(a){abrir(sheetAg(a));somaForm()}},
   "ver-ag"(el){const a=achar("agendamentos",el.dataset.id);if(a)abrir(sheetVerAg(a))},
   "novo-cli"(){abrir(sheetCli())},
   "ver-cli"(el){const c=achar("clientes",el.dataset.id);if(c)abrir(sheetCli(c))},
@@ -849,8 +899,9 @@ const ACT={
       if(ja){cid=ja.id;cnome=ja.nome;toast("Esse WhatsApp já é de "+ja.nome+". Usei a ficha dele.")}
       else{cid=novoId();if(!await store.set("clientes",cid,{nome:cnome,telefone:tel,obs:"",criadoEm:HOJE}))return}
     }else{const c=achar("clientes",cid);if(!c)return erroForm("Escolha um cliente.");cnome=c.nome}
-    const sv=achar("servicos",$("#ag-servico").value);
-    const doc=Object.assign(antigo?corpo(antigo):{},{data,hora,clienteId:cid,clienteNome:cnome,servicoId:sv?sv.id:"",servicoNome:sv?sv.nome:"Atendimento",duracao:sv?Number(sv.duracao)||30:30,
+    const vs=svForm();
+    if(S.servicos.length&&!vs.lista.length)return erroForm("Escolha pelo menos um serviço.");
+    const doc=Object.assign(antigo?corpo(antigo):{},{data,hora,clienteId:cid,clienteNome:cnome,servicoId:vs.ids[0]||"",servicoIds:vs.ids,servicoNome:vs.nome,duracao:vs.dur,
       valor:numIn($("#ag-valor").value),status:antigo?antigo.status:"agendado",pagamento:antigo?antigo.pagamento||"":""});
     if(antigo&&antigo.exemplo)doc.exemplo=true;
     const repetir=!id&&$("#ag-rep")&&$("#ag-rep").checked;
@@ -876,7 +927,7 @@ const ACT={
   async status(el){
     const a=achar("agendamentos",el.dataset.id);if(!a)return;
     const s=el.dataset.s;
-    if(await store.set("agendamentos",a.id,Object.assign(corpo(a),{status:s,pagamento:s==="concluido"?a.pagamento:"",canceladoPor:s==="cancelado"?"barbearia":""}))){fechar();toast(({faltou:"Falta registrada",cancelado:"Horário cancelado. O período voltou a ficar vago."})[s]||"Horário voltou para agendado")}
+    if(await store.set("agendamentos",a.id,Object.assign(corpo(a),{status:s,pagamento:s==="concluido"?a.pagamento:"",canceladoPor:s==="cancelado"?"barbearia":"",canceladoEm:s==="cancelado"?new Date().toISOString():""}))){fechar();toast(({faltou:"Falta registrada",cancelado:"Horário cancelado. O período voltou a ficar vago."})[s]||"Horário voltou para agendado")}
   },
   async "salvar-cli"(el){
     const id=el.dataset.id,antigo=id?achar("clientes",id):null;
@@ -1008,7 +1059,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   const id=e.target.id;
   if(id==="ag-cliente"){const n=e.target.value==="__novo";$("#ag-novo-nome").hidden=!n;$("#ag-novo-tel").hidden=!n;if(n)$("#ag-nome").focus()}
-  if(id==="ag-servico"||id==="ag-cliente"){const s=achar("servicos",$("#ag-servico").value),c=achar("clientes",$("#ag-cliente").value),m=!!(c&&c.mensalista);$("#ag-mens").hidden=!m;{const g=$("#ag-rep-grp");if(g){g.hidden=!m;if(!m)$("#ag-rep").checked=false}}$("#ag-valor").value=m?"0":String(Number(s?s.preco:0)||0).replace(".",",")}
+  if(e.target.classList.contains("ag-sv")||id==="ag-cliente"){somaForm();const s={preco:svForm().preco},c=achar("clientes",$("#ag-cliente").value),m=!!(c&&c.mensalista);$("#ag-mens").hidden=!m;{const g=$("#ag-rep-grp");if(g){g.hidden=!m;if(!m)$("#ag-rep").checked=false}}$("#ag-valor").value=m?"0":String(Number(s?s.preco:0)||0).replace(".",",")}
   if(id==="bq-todo"){$("#bq-ini-row").hidden=e.target.checked;$("#bq-fim-row").hidden=e.target.checked}
   if(id==="ev-dias"||id==="ev-serv")$("#ev-texto").value=textoVagos(S.evBase,Number($("#ev-dias").value),Number($("#ev-serv").value));
   if(id.indexOf("cfg-")===0){
@@ -1019,7 +1070,7 @@ document.addEventListener("change",e=>{
     salvaCfg(c);
   }
   if(id==="cli-mensal"){$("#cli-mens-row").hidden=!e.target.checked;if(e.target.checked)$("#cli-mens-valor").focus()}
-  if(id==="ag-servico"||id==="ag-data"||id==="ag-hora")checaConflito();
+  if(e.target.classList.contains("ag-sv")||id==="ag-data"||id==="ag-hora")checaConflito();
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#layer").hidden)fechar()});
 
