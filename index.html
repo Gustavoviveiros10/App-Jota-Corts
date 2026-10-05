@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#05070D">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="robots" content="noindex">
 <title>Painel da barbearia</title>
 <style>
@@ -267,9 +267,10 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 #app::after{content:"";display:block;flex:none;height:calc(112px + env(safe-area-inset-bottom,0px))}
 /* a barra, as janelas e os avisos se prendem à moldura do app, não à janela do navegador */
 .tabs,#scrim,#sheet,#toast{position:absolute}
-/* aberto pelo ícone da tela de início, o iPhone informa uma altura menor que a tela: usa a altura cheia */
-@media (display-mode:standalone){body{bottom:auto;height:100vh}}
-html.standalone body{bottom:auto;height:100vh}
+/* mesma correção nas janelas (ficha do cliente, novo horário): espaço real no fim, para o último botão não ficar cortado */
+#sheet{padding-bottom:0;max-height:90%}
+#sheet::after{content:"";display:block;flex:none;height:calc(28px + env(safe-area-inset-bottom,0px))}
+
 #app::-webkit-scrollbar{display:none}
 #app>*{flex:none}
 #toast{top:calc(12px + env(safe-area-inset-top,0px))}
@@ -289,7 +290,6 @@ html.standalone body{bottom:auto;height:100vh}
 <script>
 (function(){
 "use strict";
-if(navigator.standalone)document.documentElement.classList.add("standalone");
 /* ---------- util ---------- */
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,"0");
