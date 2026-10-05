@@ -262,7 +262,14 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 .btn2{height:44px;color:var(--tint);text-align:center}
 .msg{font-size:14px;color:var(--orange);min-height:18px}
 .linkbox{font-size:14px;color:var(--tint-hi);overflow-wrap:anywhere;user-select:all;-webkit-user-select:all}
-#app{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-block:calc(8px + env(safe-area-inset-top,0px)) calc(124px + env(safe-area-inset-bottom,0px));scrollbar-width:none}
+#app{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-block:calc(8px + env(safe-area-inset-top,0px)) 0;scrollbar-width:none}
+/* espaço para a barra de abas: um bloco de verdade no fim da lista, porque o Safari ignora o padding inferior de áreas com rolagem */
+#app::after{content:"";display:block;flex:none;height:calc(112px + env(safe-area-inset-bottom,0px))}
+/* a barra, as janelas e os avisos se prendem à moldura do app, não à janela do navegador */
+.tabs,#scrim,#sheet,#toast{position:absolute}
+/* aberto pelo ícone da tela de início, o iPhone informa uma altura menor que a tela: usa a altura cheia */
+@media (display-mode:standalone){body{bottom:auto;height:100vh}}
+html.standalone body{bottom:auto;height:100vh}
 #app::-webkit-scrollbar{display:none}
 #app>*{flex:none}
 #toast{top:calc(12px + env(safe-area-inset-top,0px))}
@@ -282,6 +289,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 <script>
 (function(){
 "use strict";
+if(navigator.standalone)document.documentElement.classList.add("standalone");
 /* ---------- util ---------- */
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,"0");
